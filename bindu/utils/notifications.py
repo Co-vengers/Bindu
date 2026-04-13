@@ -35,40 +35,6 @@ _BLOCKED_NETWORKS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = [
 ]
 
 
-def _resolve_and_check_ip(hostname: str) -> str:
-    """Resolve hostname to an IP address and verify it is not in a blocked range.
-
-    Returns the resolved IP address string so callers can connect directly to it,
-    preventing a DNS-rebinding attack where a second resolution (inside urlopen) could
-    return a different—potentially internal—address.
-
-    Args:
-        hostname: The hostname to resolve and validate.
-
-    Returns:
-        The resolved IP address as a string.
-
-    Raises:
-        ValueError: If the hostname cannot be resolved or resolves to a blocked range.
-    """
-    try:
-        resolved_ip = str(socket.getaddrinfo(hostname, None)[0][4][0])
-        addr = ipaddress.ip_address(resolved_ip)
-    except (socket.gaierror, ValueError) as exc:
-        raise ValueError(
-            f"Push notification URL hostname could not be resolved: {exc}"
-        ) from exc
-
-    for blocked in _BLOCKED_NETWORKS:
-        if addr in blocked:
-            raise ValueError(
-                f"Push notification URL resolves to a blocked address range "
-                f"({addr} is in {blocked}). Internal addresses are not allowed."
-            )
-
-    return resolved_ip
-
-
 class NotificationDeliveryError(Exception):
     """Raised when a push notification cannot be delivered."""
 
@@ -101,13 +67,7 @@ class NotificationService:
     async def send_event(
         self, config: PushNotificationConfig, event: dict[str, Any]
     ) -> None:
-        """Send an event to the configured HTTP webhook.
-
-        The hostname is resolved once here and the resulting IP is passed
-        through to the HTTP layer.  This single-resolution approach closes the
-        DNS-rebinding window that exists when validation and connection each
-        perform independent DNS lookups (TOCTOU SSRF).
-        """
+        """Send an event to the configured HTTP webhook."""
         self.validate_config(config)
 
         payload = json.dumps(event, separators=(",", ":")).encode("utf-8")
@@ -122,8 +82,6 @@ class NotificationService:
         In addition to URL structure checks this method resolves the hostname
         and rejects any address that falls within a private, loopback, link-local
         or cloud-metadata range to prevent Server-Side Request Forgery (SSRF).
-
-        Validates destination safety before any outbound call.
         """
         parsed = urlparse(config["url"])
         if parsed.scheme not in {"http", "https"}:
@@ -132,43 +90,23 @@ class NotificationService:
             raise ValueError("Push notification URL must include a network location.")
 
         # SSRF defence: resolve the hostname and reject internal/private addresses.
-        # The returned IP is used directly for the connection so that no second
-        # DNS lookup can return a different (internal) address.
-        self._resolve_and_validate_destination(config["url"])
-
-    @staticmethod
-    def _resolve_and_validate_destination(url: str) -> None:
-        parsed = urlparse(url)
         hostname = parsed.hostname
         if not hostname:
             raise ValueError("Push notification URL must include a valid hostname.")
-
-        port = parsed.port or (443 if parsed.scheme == "https" else 80)
-
-        # If hostname is an IP literal, validate without DNS.
         try:
-            addrs = [ipaddress.ip_address(hostname)]
-        except ValueError:
-            try:
-                infos = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
-                addrs = [ipaddress.ip_address(info[4][0]) for info in infos]
-            except (socket.gaierror, ValueError) as exc:
-                logger.warning(
-                    "Push notification hostname resolution failed; blocking registration",
-                    hostname=hostname,
-                    error=str(exc),
-                )
-                raise ValueError(
-                    "Push notification URL hostname could not be resolved."
-                ) from exc
+            resolved_ip = socket.getaddrinfo(hostname, None)[0][4][0]
+            addr = ipaddress.ip_address(resolved_ip)
+        except (socket.gaierror, ValueError) as exc:
+            raise ValueError(
+                f"Push notification URL hostname could not be resolved: {exc}"
+            ) from exc
 
-        for addr in addrs:
-            for blocked in _BLOCKED_NETWORKS:
-                if addr in blocked:
-                    raise ValueError(
-                        f"Push notification URL resolves to a blocked address range "
-                        f"({addr} is in {blocked}). Internal addresses are not allowed."
-                    )
+        for blocked in _BLOCKED_NETWORKS:
+            if addr in blocked:
+                raise ValueError(
+                    f"Push notification URL resolves to a blocked address range "
+                    f"({addr} is in {blocked}). Internal addresses are not allowed."
+                )
 
     @create_retry_decorator("api", max_attempts=3, min_wait=0.5, max_wait=5.0)
     async def _post_with_retry(
@@ -212,11 +150,6 @@ class NotificationService:
             raise
 
     def _post_once(self, url: str, headers: dict[str, str], payload: bytes) -> int:
-        try:
-            self._resolve_and_validate_destination(url)
-        except ValueError as exc:
-            raise NotificationDeliveryError(None, str(exc)) from exc
-
         req = request.Request(url, data=payload, method="POST")
         for key, value in headers.items():
             req.add_header(key, value)

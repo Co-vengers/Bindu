@@ -254,9 +254,7 @@ async function computeStats(params: {
 		},
 	];
 
-	await collections.conversations
-		.aggregate(pipeline as Record<string, unknown>[], { allowDiskUse: true })
-		.next();
+	await collections.conversations.aggregate(pipeline, { allowDiskUse: true }).next();
 
 	logger.debug(
 		{ minDate, dateField: params.dateField, span: params.span, type: params.type },

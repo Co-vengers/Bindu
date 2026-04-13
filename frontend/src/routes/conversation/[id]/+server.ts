@@ -55,7 +55,7 @@ export async function POST({ request, locals, params, getClientAddress }) {
 			}
 		);
 
-		if (res.modifiedCount === 0 && res.matchedCount === 0) {
+		if (!res.acknowledged) {
 			error(500, "Failed to convert conversation");
 		}
 	}

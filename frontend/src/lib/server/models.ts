@@ -13,13 +13,6 @@ interface ModelConfig {
 	name: string;
 	displayName?: string;
 	description?: string;
-	websiteUrl?: string;
-	modelUrl?: string;
-	datasetName?: string;
-	datasetUrl?: string;
-	logoUrl?: string;
-	promptExamples?: Array<{ title: string; prompt: string }>;
-	providers?: Array<{ provider: string } & Record<string, unknown>>;
 	preprompt: string;
 	multimodal: boolean;
 	multimodalAcceptedMimetypes?: string[];
@@ -54,11 +47,7 @@ const processModel = async (m: ModelConfig) => ({
 	id: m.id || m.name,
 	displayName: m.displayName || m.name,
 	preprompt: m.preprompt,
-	parameters: {
-		stop_sequences: [] as string[],
-		stop: [] as string[],
-		truncate: null,
-	},
+	parameters: { stop_sequences: [] as string[] },
 	unlisted: m.unlisted ?? false,
 });
 
@@ -265,16 +254,5 @@ export const validateModel = (_models: BackendModel[]) => {
 
 export type BackendModel = Optional<
 	typeof defaultModel,
-	| "preprompt"
-	| "parameters"
-	| "multimodal"
-	| "unlisted"
-	| "hasInferenceAPI"
-	| "websiteUrl"
-	| "modelUrl"
-	| "datasetName"
-	| "datasetUrl"
-	| "logoUrl"
-	| "promptExamples"
-	| "providers"
+	"preprompt" | "parameters" | "multimodal" | "unlisted" | "hasInferenceAPI"
 >;

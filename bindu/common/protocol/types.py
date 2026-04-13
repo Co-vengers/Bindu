@@ -156,7 +156,7 @@ class FileWithUri(FileWithBytes):
 
 
 @pydantic.with_config(ConfigDict(alias_generator=to_camel))
-class FilePart(TypedDict):
+class FilePart(TextPart):
     """Represents a file segment within a message or artifact.
 
     The file content can be provided either directly as bytes or as a URI.
@@ -168,15 +168,11 @@ class FilePart(TypedDict):
     file: Required[FileWithBytes | FileWithUri]
     """The file of the part."""
 
-    metadata: NotRequired[dict[str, Any]]
-    """Metadata about the file part."""
-
     embeddings: NotRequired[list[float]]
     """The embeddings of File. <NotPartOfA2A>"""
 
 
-@pydantic.with_config(ConfigDict(alias_generator=to_camel))
-class DataPart(TypedDict):
+class DataPart(TextPart):
     """Represents a structured data segment (e.g., JSON) within a message or artifact."""
 
     kind: Required[Literal["data"]]
@@ -184,9 +180,6 @@ class DataPart(TypedDict):
 
     data: Required[dict[str, Any]]
     """The data of the part."""
-
-    metadata: NotRequired[dict[str, Any]]
-    """Metadata about the data part."""
 
     embeddings: NotRequired[list[float]]
     """The embeddings of Data. <NotPartOfA2A>"""

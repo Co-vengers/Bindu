@@ -35,7 +35,8 @@ class PartConverter:
                 return part_class(**data)
 
         # Fallback: convert unknown dict to DataPart
-        return DataPart(kind="data", data=data)
+        # DataPart requires 'text' field even though it's a data part
+        return DataPart(kind="data", data=data, text="")
 
     @staticmethod
     def result_to_parts(result: Any) -> list[Part]:

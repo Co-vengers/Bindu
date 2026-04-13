@@ -1,3 +1,12 @@
+# |---------------------------------------------------------|
+# |                                                         |
+# |                 Give Feedback / Get Help                |
+# | https://github.com/getbindu/Bindu/issues/new/choose    |
+# |                                                         |
+# |---------------------------------------------------------|
+#
+#  Thank you users! We ❤️ you! - 🌻
+
 """DID (Decentralized Identifier) Extension for Bindu Agents.
 
 Why is DID an Extension?
@@ -17,10 +26,6 @@ DID documents, enabling agents to establish trust in a decentralized network.
 """
 
 from __future__ import annotations
-
-import os
-import platform
-import subprocess
 
 from datetime import datetime, timezone
 from functools import cached_property
@@ -210,60 +215,17 @@ class DIDAgentExtension:
         private_pem, public_pem = self._generate_key_pair_data()
 
         # Write keys using Path methods
-        if platform.system() == "Windows":
-            # Windows does not enforce POSIX permissions — write directly
-            self.private_key_path.write_bytes(private_pem)
-            self.public_key_path.write_bytes(public_pem)
-            self._harden_windows_key_file_acl(self.private_key_path)
-            self._harden_windows_key_file_acl(self.public_key_path)
-        else:
-            # POSIX: use os.open to set permissions atomically on creation
-            fd = os.open(
-                str(self.private_key_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
-            )
-            with os.fdopen(fd, "wb") as f:
-                f.write(private_pem)
-            os.chmod(self.private_key_path, 0o600)
+        self.private_key_path.write_bytes(private_pem)
+        self.public_key_path.write_bytes(public_pem)
 
-            fd = os.open(
-                str(self.public_key_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644
-            )
-            with os.fdopen(fd, "wb") as f:
-                f.write(public_pem)
-            os.chmod(self.public_key_path, 0o644)
+        # Set appropriate file permissions (owner read/write only for private key)
+        self.private_key_path.chmod(0o600)
+        self.public_key_path.chmod(0o644)
 
         return {
             "private_key_path": str(self.private_key_path),
             "public_key_path": str(self.public_key_path),
         }
-
-    @staticmethod
-    def _harden_windows_key_file_acl(path: Path) -> None:
-        """Restrict Windows ACLs to current user for key file confidentiality."""
-        username = os.getenv("USERNAME")
-        if not username:
-            raise RuntimeError(
-                "Unable to determine Windows username for key ACL hardening"
-            )
-
-        # Remove inherited ACLs and grant full control to current user only.
-        cmd = [
-            "icacls",
-            str(path),
-            "/inheritance:r",
-            "/grant:r",
-            f"{username}:F",
-            "/remove:g",
-            "Users",
-            "Authenticated Users",
-            "Everyone",
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        if result.returncode != 0:
-            raise RuntimeError(
-                "Failed to harden ACL for key file "
-                f"{path}: {result.stderr.strip() or result.stdout.strip()}"
-            )
 
     def _load_key_from_file(self, key_path: Path, key_type: str) -> bytes:
         """Load key PEM data from file.

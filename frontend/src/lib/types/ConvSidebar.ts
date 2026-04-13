@@ -1,4 +1,4 @@
-import type ObjectId from "bson-objectid";
+import type { ObjectId } from "bson";
 
 export interface ConvSidebar {
 	id: ObjectId | string;
